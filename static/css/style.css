@@ -1,0 +1,84 @@
+/* static/css/style.css - Custom UI Enhancements */
+
+:root {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --bs-body-font-family: var(--font-sans);
+}
+
+body {
+  font-family: var(--font-sans);
+  color: #1e293b;
+  background-color: #f8fafc;
+}
+
+.shadow-xs {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.card {
+  border-radius: 0.75rem;
+  transition: box-shadow 0.2s ease-in-out;
+}
+
+.card-header {
+  border-top-left-radius: 0.75rem !important;
+  border-top-right-radius: 0.75rem !important;
+}
+
+.tracking-wider {
+  letter-spacing: 0.05em;
+}
+
+.table > :not(caption) > * > * {
+  padding: 0.85rem 0.75rem;
+}
+
+.progress {
+  background-color: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  border-radius: 9999px;
+}
+
+.font-monospace {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
+
+.bg-danger-subtle {
+  background-color: #fee2e2 !important;
+}
+
+.text-danger {
+  color: #dc2626 !important;
+}
+
+.bg-warning-subtle {
+  background-color: #fef3c7 !important;
+}
+
+.text-warning {
+  color: #d97706 !important;
+}
+
+.bg-success-subtle {
+  background-color: #dcfce7 !important;
+}
+
+.text-success {
+  color: #16a34a !important;
+}
+
+.bg-info-subtle {
+  background-color: #e0f2fe !important;
+}
+
+.text-info {
+  color: #0284c7 !important;
+}
+
+.navbar-brand {
+  letter-spacing: -0.02em;
+}

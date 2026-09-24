@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Historical Analysis &bull; Knowledge-Based Expense Agent{% endblock %}
+
+{% block content %}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+  <div>
+    <h2 class="h3 fw-bold text-dark mb-1">
+      <i class="bi bi-clock-history text-primary me-2"></i>Multi-Month History & Trajectory
+    </h2>
+    <p class="text-muted mb-0">
+      Track salary changes, aggregate spending, and savings performance across all recorded cycles.
+    </p>
+  </div>
+
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('entry_page') }}" class="btn btn-outline-primary btn-sm shadow-sm">
+      <i class="bi bi-plus-circle me-1"></i> Add / Edit Month
+    </a>
+  </div>
+</div>
+
+<!-- History Aggregate Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-3 bg-white p-3">
+      <span class="text-muted small fw-semibold text-uppercase">Cumulative Income</span>
+      <h4 class="fw-bold text-dark mt-2 mb-0">
+        {{ settings.currency }}{{ "%.2f"|format(total_income) }}
+      </h4>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-3 bg-white p-3">
+      <span class="text-muted small fw-semibold text-uppercase">Cumulative Spent</span>
+      <h4 class="fw-bold text-danger mt-2 mb-0">
+        {{ settings.currency }}{{ "%.2f"|format(total_spent) }}
+      </h4>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-3 bg-white p-3">
+      <span class="text-muted small fw-semibold text-uppercase">Cumulative Net Savings</span>
+      <h4 class="fw-bold {% if total_savings >= 0 %}text-success{% else %}text-danger{% endif %} mt-2 mb-0">
+        {{ settings.currency }}{{ "%.2f"|format(total_savings) }}
+      </h4>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm rounded-3 bg-white p-3">
+      <span class="text-muted small fw-semibold text-uppercase">Average Savings Rate</span>
+      <h4 class="fw-bold text-primary mt-2 mb-0">
+        {{ avg_savings_rate }}%
+      </h4>
+    </div>
+  </div>
+</div>
+
+<!-- History Trend Chart -->
+<div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+  <div class="card-header bg-white border-bottom py-3">
+    <h6 class="fw-bold mb-0 text-dark">
+      <i class="bi bi-graph-up text-info me-2"></i>Income, Outflows & Savings Over Time
+    </h6>
+  </div>
+  <div class="card-body p-3">
+    <div style="height: 320px;">
+      <canvas id="multiMonthChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- All Recorded Months Table -->
+<div class="card border-0 shadow-sm rounded-3 bg-white">
+  <div class="card-header bg-white border-bottom py-3">
+    <h5 class="card-title fw-bold mb-0 text-dark">
+      <i class="bi bi-table text-secondary me-2"></i>Monthly Records Log
+    </h5>
+  </div>
+
+  <div class="card-body p-0">
+    {% if all_months %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light text-muted small">
+            <tr>
+              <th class="ps-4">Month</th>
+              <th class="text-end">Base Salary</th>
+              <th class="text-end">Other Income</th>
+              <th class="text-end">Total Spent</th>
+              <th class="text-end">Net Savings</th>
+              <th class="text-end">Savings Rate</th>
+              <th class="text-center">Change Context</th>
+              <th class="text-end pe-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in all_months %}
+              <tr>
+                <td class="ps-4 fw-bold font-monospace text-primary">
+                  <a href="{{ url_for('dashboard', month=m.month) }}" class="text-decoration-none">
+                    {{ m.month }}
+                  </a>
+                </td>
+                <td class="text-end font-monospace">{{ settings.currency }}{{ "%.2f"|format(m.salary) }}</td>
+                <td class="text-end font-monospace text-muted">{{ settings.currency }}{{ "%.2f"|format(m.other_income) }}</td>
+                <td class="text-end font-monospace fw-semibold text-danger">{{ settings.currency }}{{ "%.2f"|format(m.total_spent) }}</td>
+                <td class="text-end font-monospace fw-bold {% if m.savings >= 0 %}text-success{% else %}text-danger{% endif %}">
+                  {{ settings.currency }}{{ "%.2f"|format(m.savings) }}
+                </td>
+                <td class="text-end font-monospace">
+                  <span class="badge {% if m.savings_rate >= settings.savings_goal_percent %}bg-success-subtle text-success border border-success-subtle{% elif m.savings_rate >= 0 %}bg-warning-subtle text-warning border border-warning-subtle{% else %}bg-danger-subtle text-danger border border-danger-subtle{% endif %}">
+                    {{ m.savings_rate }}%
+                  </span>
+                </td>
+                <td class="text-center">
+                  {% if m.change_type %}
+                    <span class="badge bg-light text-secondary border text-capitalize">{{ m.change_type }}</span>
+                  {% else %}
+                    <span class="text-muted small">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end pe-4">
+                  <a href="{{ url_for('dashboard', month=m.month) }}" class="btn btn-sm btn-outline-primary me-1">
+                    <i class="bi bi-speedometer2"></i>
+                  </a>
+                  <a href="{{ url_for('entry_page', month=m.month) }}" class="btn btn-sm btn-outline-secondary me-1">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  <a href="{{ url_for('export_month_csv', month=m.month) }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-download"></i>
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="p-5 text-center text-muted">
+        <i class="bi bi-calendar-x fs-1 d-block mb-2 text-secondary"></i>
+        <p class="mb-2 fw-semibold">No monthly records found.</p>
+        <p class="small text-muted mb-3">Load sample demo data or enter data for your first month.</p>
+        <form action="{{ url_for('insert_sample_data') }}" method="POST" class="d-inline">
+          <button type="submit" class="btn btn-primary btn-sm fw-semibold">
+            <i class="bi bi-database-fill-add me-1"></i> Load Demo Data (3 Months)
+          </button>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const currencySymbol = {{ settings.currency | tojson }};
+  const historyChartData = {{ history_chart | tojson }};
+
+  const ctx = document.getElementById('multiMonthChart');
+  if (ctx && historyChartData && historyChartData.labels.length > 0) {
+    new Chart(ctx, {
+      type: 'line',
+      data: historyChartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${currencySymbol}${context.raw.toLocaleString()}`
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: (value) => currencySymbol + value.toLocaleString()
+            }
+          }
+        }
+      }
+    });
+  } else if (ctx) {
+    ctx.parentElement.innerHTML = '<div class="h-100 d-flex align-items-center justify-content-center text-muted small">Add multiple months to see trend comparison.</div>';
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Monthly Entry &bull; Knowledge-Based Expense Agent{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- Left Column: Month & Salary Configuration -->
+  <div class="col-lg-4">
+    
+    <!-- Month Picker Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="card-title fw-bold mb-0 text-dark">
+          <i class="bi bi-calendar3 text-primary me-2"></i>Select Active Month
+        </h5>
+      </div>
+      <div class="card-body">
+        <form method="GET" action="{{ url_for('entry_page') }}" class="d-flex gap-2">
+          <input type="month" name="month" class="form-control" value="{{ selected_month }}" required>
+          <button type="submit" class="btn btn-primary fw-semibold px-3">
+            <i class="bi bi-arrow-repeat"></i> Load
+          </button>
+        </form>
+
+        {% if month_options %}
+          <div class="mt-3">
+            <span class="text-muted small">Quick Jump:</span>
+            <div class="d-flex flex-wrap gap-1 mt-1">
+              {% for m in month_options %}
+                <a href="{{ url_for('entry_page', month=m) }}"
+                   class="badge {% if m == selected_month %}bg-primary text-white{% else %}bg-light text-dark border{% endif %} text-decoration-none">
+                  {{ m }}
+                </a>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Monthly Income Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h5 class="card-title fw-bold mb-0 text-dark">
+          <i class="bi bi-wallet2 text-success me-2"></i>Income for {{ selected_month }}
+        </h5>
+        {% if salary_rec %}
+          <span class="badge bg-success-subtle text-success border border-success-subtle">Recorded</span>
+        {% else %}
+          <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Not Set</span>
+        {% endif %}
+      </div>
+
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('entry_page') }}">
+          <input type="hidden" name="update_salary" value="1">
+          <input type="hidden" name="month" value="{{ selected_month }}">
+
+          <div class="mb-3">
+            <label for="salary" class="form-label fw-semibold">Base Monthly Salary ({{ settings.currency }})</label>
+            <div class="input-group">
+              <span class="input-group-text">{{ settings.currency }}</span>
+              <input type="number" step="0.01" min="0" class="form-control form-control-lg fw-bold"
+                     id="salary" name="salary"
+                     value="{{ salary_rec.salary if salary_rec else '' }}"
+                     placeholder="e.g. 50000" required>
+            </div>
+            <div class="form-text small">Sensors reject negative values (PEAS Input validation).</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="other_income" class="form-label fw-semibold">Other Income (Optional)</label>
+            <div class="input-group">
+              <span class="input-group-text">{{ settings.currency }}</span>
+              <input type="number" step="0.01" min="0" class="form-control"
+                     id="other_income" name="other_income"
+                     value="{{ salary_rec.other_income if salary_rec else 0.0 }}"
+                     placeholder="e.g. 2000">
+            </div>
+            <div class="form-text small">Freelance, dividends, or reimbursements.</div>
+          </div>
+
+          <!-- Special Case Prompt (>25% Salary Change) -->
+          {% if salary_analysis and salary_analysis.large_change_info.large_change %}
+            <div class="alert alert-warning border border-warning-subtle p-3 rounded-3 mb-3">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+                <strong class="text-dark">Significant Salary Change Detected!</strong>
+              </div>
+              <p class="small text-muted mb-2">
+                Salary changed by <strong>{{ salary_analysis.large_change_info.change_pct }}%</strong>
+                versus {{ salary_analysis.previous_month }} ({{ settings.currency }}{{ salary_analysis.previous_salary }} → {{ settings.currency }}{{ salary_rec.salary }}).
+                Please confirm the reason:
+              </p>
+              
+              <label for="change_type" class="form-label fw-bold small">Reason for Change:</label>
+              <select name="change_type" id="change_type" class="form-select form-select-sm" required>
+                <option value="">-- Select confirmation --</option>
+                <option value="hike" {% if salary_rec and salary_rec.change_type == 'hike' %}selected{% endif %}>Permanent Hike</option>
+                <option value="bonus" {% if salary_rec and salary_rec.change_type == 'bonus' %}selected{% endif %}>One-off Bonus / Incentive</option>
+                <option value="deduction" {% if salary_rec and salary_rec.change_type == 'deduction' %}selected{% endif %}>Salary Deduction / Pay Cut</option>
+              </select>
+            </div>
+          {% else %}
+            {% if salary_rec and salary_rec.change_type %}
+              <div class="mb-3">
+                <label class="form-label small text-muted">Confirmed Change Type:</label>
+                <span class="badge bg-secondary text-capitalize">{{ salary_rec.change_type }}</span>
+              </div>
+            {% endif %}
+          {% endif %}
+
+          <button type="submit" class="btn btn-success w-100 fw-semibold shadow-sm">
+            <i class="bi bi-check-lg me-1"></i> Save Income for {{ selected_month }}
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- CSV Bulk Upload Card -->
+    <div class="card border-0 shadow-sm rounded-3">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="card-title fw-bold mb-0 text-dark">
+          <i class="bi bi-file-earmark-arrow-up text-secondary me-2"></i>Import Expenses (CSV)
+        </h5>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('import_csv') }}" enctype="multipart/form-data">
+          <input type="hidden" name="target_month" value="{{ selected_month }}">
+          <div class="mb-3">
+            <label for="csv_file" class="form-label small text-muted">Select CSV file (Columns: date, category, description, amount):</label>
+            <input type="file" name="file" id="csv_file" class="form-control form-control-sm" accept=".csv" required>
+          </div>
+          <button type="submit" class="btn btn-outline-primary btn-sm w-100 fw-semibold">
+            <i class="bi bi-upload me-1"></i> Upload & Validate CSV
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right Column: Expense Management -->
+  <div class="col-lg-8">
+
+    <!-- Add Expense Form Card -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h5 class="card-title fw-bold mb-0 text-dark">
+          <i class="bi bi-plus-circle-fill text-primary me-2"></i>Add Expense Item
+        </h5>
+        <a href="{{ url_for('dashboard', month=selected_month) }}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-speedometer2 me-1"></i> View Dashboard
+        </a>
+      </div>
+
+      <div class="card-body p-4">
+        <form method="POST" action="{{ url_for('add_expense') }}">
+          <input type="hidden" name="month" value="{{ selected_month }}">
+
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label for="date" class="form-label fw-semibold">Date</label>
+              <input type="date" class="form-control" id="date" name="date"
+                     value="{{ selected_month }}-01" required>
+              <div class="form-text small">Must be inside {{ selected_month }}.</div>
+            </div>
+
+            <div class="col-md-3">
+              <label for="category" class="form-label fw-semibold">Category</label>
+              <select class="form-select" id="category" name="category" required>
+                {% for cat in settings.category_budgets.keys() %}
+                  <option value="{{ cat }}">{{ cat }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-4">
+              <label for="description" class="form-label fw-semibold">Description</label>
+              <input type="text" class="form-control" id="description" name="description"
+                     placeholder="e.g. Weekly Groceries" required>
+            </div>
+
+            <div class="col-md-2">
+              <label for="amount" class="form-label fw-semibold">Amount ({{ settings.currency }})</label>
+              <input type="number" step="0.01" min="0.01" class="form-control" id="amount" name="amount"
+                     placeholder="0.00" required>
+            </div>
+          </div>
+
+          <div class="mt-3 text-end">
+            <button type="submit" class="btn btn-primary fw-semibold px-4 shadow-sm">
+              <i class="bi bi-plus-lg me-1"></i> Add Expense
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Recorded Expenses List -->
+    <div class="card border-0 shadow-sm rounded-3">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h5 class="card-title fw-bold mb-0 text-dark">
+          <i class="bi bi-list-check text-info me-2"></i>Expenses in {{ selected_month }}
+          <span class="badge bg-light text-dark border ms-2">{{ expenses|length }} item{{ 's' if expenses|length != 1 else '' }}</span>
+        </h5>
+        {% if expenses %}
+          <a href="{{ url_for('export_month_csv', month=selected_month) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-download me-1"></i> Export CSV
+          </a>
+        {% endif %}
+      </div>
+
+      <div class="card-body p-0">
+        {% if expenses %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light text-muted small">
+                <tr>
+                  <th class="ps-4">Date</th>
+                  <th>Category</th>
+                  <th>Description</th>
+                  <th class="text-end">Amount</th>
+                  <th class="text-end pe-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for exp in expenses %}
+                  <tr>
+                    <td class="ps-4 font-monospace small">{{ exp.date }}</td>
+                    <td>
+                      <span class="badge bg-light text-dark border">{{ exp.category }}</span>
+                    </td>
+                    <td class="fw-medium text-dark">{{ exp.description or '—' }}</td>
+                    <td class="text-end fw-bold font-monospace text-dark">
+                      {{ settings.currency }}{{ "%.2f"|format(exp.amount) }}
+                    </td>
+                    <td class="text-end pe-4">
+                      <button type="button" class="btn btn-sm btn-outline-secondary me-1"
+                              data-bs-toggle="modal" data-bs-target="#editModal{{ exp.id }}"
+                              title="Edit item">
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <form method="POST" action="{{ url_for('delete_expense', expense_id=exp.id) }}"
+                            class="d-inline" onsubmit="return confirm('Delete this expense?');">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete item">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+
+                  <!-- Edit Modal -->
+                  <div class="modal fade" id="editModal{{ exp.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                      <div class="modal-content">
+                        <form method="POST" action="{{ url_for('edit_expense', expense_id=exp.id) }}">
+                          <div class="modal-header">
+                            <h5 class="modal-title fw-bold">Edit Expense #{{ exp.id }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                          </div>
+                          <div class="modal-body">
+                            <div class="mb-3">
+                              <label class="form-label fw-semibold">Date</label>
+                              <input type="date" name="date" class="form-control" value="{{ exp.date }}" required>
+                            </div>
+                            <div class="mb-3">
+                              <label class="form-label fw-semibold">Category</label>
+                              <select name="category" class="form-select" required>
+                                {% for cat in settings.category_budgets.keys() %}
+                                  <option value="{{ cat }}" {% if exp.category == cat %}selected{% endif %}>{{ cat }}</option>
+                                {% endfor %}
+                              </select>
+                            </div>
+                            <div class="mb-3">
+                              <label class="form-label fw-semibold">Description</label>
+                              <input type="text" name="description" class="form-control" value="{{ exp.description }}" required>
+                            </div>
+                            <div class="mb-3">
+                              <label class="form-label fw-semibold">Amount ({{ settings.currency }})</label>
+                              <input type="number" step="0.01" min="0.01" name="amount" class="form-control" value="{{ exp.amount }}" required>
+                            </div>
+                          </div>
+                          <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="submit" class="btn btn-primary fw-semibold">Save Changes</button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="p-5 text-center text-muted">
+            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+            <p class="mb-2 fw-semibold">No expenses recorded for {{ selected_month }}.</p>
+            <p class="small text-muted mb-0">Use the form above to add expenses, or click "Load Demo Data" in the top bar.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}

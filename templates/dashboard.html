@@ -1,0 +1,511 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard ({{ month }}) &bull; Knowledge-Based Expense Agent{% endblock %}
+
+{% block content %}
+
+<!-- Header & Month Navigation -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+  <div>
+    <h2 class="h3 fw-bold text-dark mb-1">
+      <i class="bi bi-speedometer2 text-primary me-2"></i>Expense Analysis Dashboard
+    </h2>
+    <p class="text-muted mb-0">
+      Month: <span class="badge bg-dark fs-6 px-3 py-1 font-monospace">{{ month }}</span>
+      {% if not salary_rec %}
+        <span class="badge bg-warning text-dark ms-2">No income set</span>
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <!-- Month Quick Selector -->
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary dropdown-toggle btn-sm shadow-sm" type="button" data-bs-toggle="dropdown">
+        <i class="bi bi-calendar-event me-1"></i> Switch Month ({{ month }})
+      </button>
+      <ul class="dropdown-dropdown-menu dropdown-menu dropdown-menu-end shadow">
+        {% for m in available_months %}
+          <li>
+            <a class="dropdown-item {% if m == month %}active fw-semibold{% endif %}"
+               href="{{ url_for('dashboard', month=m) }}">
+              {{ m }}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <a href="{{ url_for('entry_page', month=month) }}" class="btn btn-outline-primary btn-sm shadow-sm">
+      <i class="bi bi-pencil-square me-1"></i> Edit Data
+    </a>
+
+    <a href="{{ url_for('export_month_csv', month=month) }}" class="btn btn-secondary btn-sm shadow-sm">
+      <i class="bi bi-file-earmark-arrow-down me-1"></i> Export CSV
+    </a>
+  </div>
+</div>
+
+<!-- 1. Salary Trend Card & Key Metric Row -->
+<div class="row g-3 mb-4">
+
+  <!-- Salary Trend Card -->
+  <div class="col-xl-4 col-md-6">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-body p-4 d-flex flex-column justify-content-between">
+        <div>
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <span class="text-muted fw-semibold small text-uppercase tracking-wider">Salary Trend</span>
+            {% if salary_analysis.has_previous %}
+              {% if salary_analysis.trend == 'rising' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                  <i class="bi bi-arrow-up-right me-1"></i> Rising
+                </span>
+              {% elif salary_analysis.trend == 'falling' %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                  <i class="bi bi-arrow-down-right me-1"></i> Falling
+                </span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
+                  <i class="bi bi-arrow-right me-1"></i> Stable
+                </span>
+              {% endif %}
+            {% else %}
+              <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1">First Month</span>
+            {% endif %}
+          </div>
+
+          <h3 class="fw-bold text-dark mb-1">
+            {{ settings.currency }}{{ "%.2f"|format(summary.salary) }}
+          </h3>
+
+          {% if salary_analysis.has_previous %}
+            <div class="d-flex align-items-center gap-2 mt-2">
+              {% if salary_analysis.change_inr > 0 %}
+                <i class="bi bi-graph-up-arrow text-success fs-5"></i>
+                <span class="text-success fw-bold">
+                  +{{ settings.currency }}{{ "%.2f"|format(salary_analysis.change_inr) }} (+{{ salary_analysis.change_percent }}%)
+                </span>
+              {% elif salary_analysis.change_inr < 0 %}
+                <i class="bi bi-graph-down-arrow text-danger fs-5"></i>
+                <span class="text-danger fw-bold">
+                  -{{ settings.currency }}{{ "%.2f"|format(salary_analysis.change_inr|abs) }} ({{ salary_analysis.change_percent }}%)
+                </span>
+              {% else %}
+                <i class="bi bi-dash text-secondary fs-5"></i>
+                <span class="text-secondary fw-bold">No change vs previous month</span>
+              {% endif %}
+            </div>
+            <div class="small text-muted mt-1">
+              Previous month ({{ salary_analysis.previous_month }}): {{ settings.currency }}{{ "%.2f"|format(salary_analysis.previous_salary) }}
+            </div>
+          {% else %}
+            <div class="small text-muted mt-2">
+              <i class="bi bi-info-circle me-1"></i> No prior month baseline. Trend evaluation starts next month.
+            </div>
+          {% endif %}
+        </div>
+
+        {% if summary.other_income > 0 %}
+          <div class="mt-3 pt-2 border-top small text-muted">
+            + {{ settings.currency }}{{ "%.2f"|format(summary.other_income) }} other income (Total: {{ settings.currency }}{{ "%.2f"|format(summary.total_income) }})
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Metric: Total Spent -->
+  <div class="col-xl-2 col-md-6">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-body p-4">
+        <span class="text-muted fw-semibold small text-uppercase">Total Spent</span>
+        <h3 class="fw-bold text-dark mt-2 mb-1">
+          {{ settings.currency }}{{ "%.2f"|format(summary.total_spent) }}
+        </h3>
+        <span class="badge bg-light text-muted border small mt-2">
+          {{ summary.expense_count }} recorded item{{ 's' if summary.expense_count != 1 else '' }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Metric: Remaining Balance -->
+  <div class="col-xl-2 col-md-6">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-body p-4">
+        <span class="text-muted fw-semibold small text-uppercase">Remaining Balance</span>
+        <h3 class="fw-bold {% if summary.remaining_balance >= 0 %}text-success{% else %}text-danger{% endif %} mt-2 mb-1">
+          {{ settings.currency }}{{ "%.2f"|format(summary.remaining_balance) }}
+        </h3>
+        <span class="small {% if summary.remaining_balance >= 0 %}text-success{% else %}text-danger{% endif %} mt-2 d-block">
+          {% if summary.remaining_balance >= 0 %}Surplus cash in hand{% else %}Budget deficit{% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Metric: Savings Rate -->
+  <div class="col-xl-2 col-md-6">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-body p-4">
+        <span class="text-muted fw-semibold small text-uppercase">Savings Rate</span>
+        <h3 class="fw-bold {% if summary.savings_rate >= summary.savings_goal_percent %}text-success{% elif summary.savings_rate >= 0 %}text-warning{% else %}text-danger{% endif %} mt-2 mb-1">
+          {{ summary.savings_rate }}%
+        </h3>
+        <span class="small text-muted mt-2 d-block">
+          Goal: {{ summary.savings_goal_percent }}% of salary
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Metric: Savings Goal Status -->
+  <div class="col-xl-2 col-md-6">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-body p-4">
+        <span class="text-muted fw-semibold small text-uppercase">Goal Status</span>
+        <div class="mt-2 mb-1">
+          <span class="badge bg-{{ summary.savings_goal_color }}-subtle text-{{ summary.savings_goal_color }} border border-{{ summary.savings_goal_color }}-subtle fs-6 px-3 py-2">
+            {{ summary.savings_goal_status_label }}
+          </span>
+        </div>
+        <span class="small text-muted mt-2 d-block">
+          Target: {{ settings.currency }}{{ "%.2f"|format(summary.savings_goal_inr) }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 2. Alerts & Recommendations Row -->
+<div class="row g-4 mb-4">
+  
+  <!-- 4. Alerts List (Sorted by Severity) -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h5 class="card-title fw-bold mb-0 text-dark">
+          <i class="bi bi-bell-fill text-warning me-2"></i>Knowledge Base Alerts
+          <span class="badge bg-light text-dark border ms-2">{{ alerts|length }}</span>
+        </h5>
+        <span class="small text-muted">Prioritized by Severity</span>
+      </div>
+      <div class="card-body p-3">
+        {% if alerts %}
+          <div class="d-flex flex-column gap-2">
+            {% for alert in alerts %}
+              <div class="p-3 rounded-3 border d-flex align-items-start gap-3 bg-{{ alert.badge_class }}-subtle border-{{ alert.badge_class }}-subtle">
+                <span class="badge bg-{{ alert.badge_class }} text-white font-monospace px-2 py-1 mt-1 shadow-xs">
+                  {{ alert.id }}
+                </span>
+                <div class="flex-grow-1">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong class="text-dark">{{ alert.category }}</strong>
+                    <span class="badge bg-white text-{{ alert.badge_class }} border border-{{ alert.badge_class }}-subtle small text-uppercase">
+                      {{ alert.severity }}
+                    </span>
+                  </div>
+                  <p class="small text-dark mb-0 leading-relaxed">{{ alert.message }}</p>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="p-4 text-center text-muted">
+            <i class="bi bi-check2-circle text-success fs-2 d-block mb-2"></i>
+            <p class="mb-0">No alerts triggered. Everything is operating smoothly.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Recommendations (Up to 3, specific, with INR) -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h5 class="card-title fw-bold mb-0 text-dark">
+          <i class="bi bi-lightbulb-fill text-primary me-2"></i>Actionable Recommendations
+        </h5>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Top Priorities</span>
+      </div>
+      <div class="card-body p-3">
+        {% if recommendations %}
+          <div class="d-flex flex-column gap-3">
+            {% for rec in recommendations %}
+              <div class="p-3 rounded-3 border bg-light shadow-xs position-relative overflow-hidden">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                    <i class="bi bi-bullseye text-primary"></i>
+                    {{ rec.title }}
+                  </h6>
+                  {% if rec.amount > 0 %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-bold font-monospace">
+                      {{ rec.action_type }}: {{ settings.currency }}{{ "%.2f"|format(rec.amount) }}
+                    </span>
+                  {% endif %}
+                </div>
+                <p class="small text-muted mb-0 leading-relaxed">{{ rec.body }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="p-4 text-center text-muted">
+            <p class="mb-0">Add expenses to generate data-driven recommendations.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 3. Category Table (color-coded) -->
+<div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+  <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+    <h5 class="card-title fw-bold mb-0 text-dark">
+      <i class="bi bi-table text-secondary me-2"></i>Category Budget & Spending Breakdown
+    </h5>
+    <div class="d-flex gap-2">
+      <span class="badge bg-success-subtle text-success border border-success-subtle small">&lt;80% Healthy</span>
+      <span class="badge bg-warning-subtle text-warning border border-warning-subtle small">80-99% Warning</span>
+      <span class="badge bg-danger-subtle text-danger border border-danger-subtle small">&ge;100% Critical</span>
+    </div>
+  </div>
+
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light text-muted small">
+          <tr>
+            <th class="ps-4">Category</th>
+            <th class="text-end">Spent</th>
+            <th class="text-end">Budget</th>
+            <th class="text-end">Remaining</th>
+            <th class="ps-4" style="width: 25%;">% Used</th>
+            <th class="text-center pe-4">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in categories %}
+            <tr>
+              <td class="ps-4 fw-semibold text-dark">
+                {{ cat.category }}
+                {% if cat.on_pace_to_exceed %}
+                  <span class="badge bg-warning text-dark border ms-1 small" title="Projected: {{ settings.currency }}{{ '%.2f'|format(cat.projected_spend) }}">
+                    <i class="bi bi-clock-history me-1"></i>Pacing Over
+                  </span>
+                {% endif %}
+              </td>
+              <td class="text-end fw-bold font-monospace text-dark">
+                {{ settings.currency }}{{ "%.2f"|format(cat.spent) }}
+              </td>
+              <td class="text-end font-monospace text-muted">
+                {{ settings.currency }}{{ "%.2f"|format(cat.budget) }}
+              </td>
+              <td class="text-end font-monospace fw-semibold {% if cat.remaining >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {{ settings.currency }}{{ "%.2f"|format(cat.remaining) }}
+              </td>
+              <td class="ps-4">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="progress flex-grow-1" style="height: 8px;">
+                    <div class="progress-bar bg-{{ cat.color_class }}" role="progressbar"
+                         style="width: {{ [cat.used_pct, 100]|min }}%;"
+                         aria-valuenow="{{ cat.used_pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+                  </div>
+                  <span class="small font-monospace fw-semibold text-{{ cat.color_class }}" style="min-width: 48px;">
+                    {{ cat.used_pct }}%
+                  </span>
+                </div>
+              </td>
+              <td class="text-center pe-4">
+                <span class="badge bg-{{ cat.color_class }}-subtle text-{{ cat.color_class }} border border-{{ cat.color_class }}-subtle px-2 py-1">
+                  {{ cat.status_label }}
+                </span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 6. Chart.js Charts Row -->
+<div class="row g-4 mb-4">
+  
+  <!-- a) Bar Chart: Budget vs Spent per Category -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="fw-bold mb-0 text-dark">
+          <i class="bi bi-bar-chart-fill text-primary me-2"></i>Budget vs Spent by Category
+        </h6>
+      </div>
+      <div class="card-body p-3">
+        <div style="height: 320px;">
+          <canvas id="categoryBarChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- c) Doughnut Chart: Spending Share by Category -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="fw-bold mb-0 text-dark">
+          <i class="bi bi-pie-chart-fill text-success me-2"></i>Spending Share by Category
+        </h6>
+      </div>
+      <div class="card-body p-3">
+        <div style="height: 320px;">
+          <canvas id="categoryDoughnutChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- b) Line Chart: Salary vs Spending vs Savings Across Months -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm rounded-3 bg-white">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="fw-bold mb-0 text-dark">
+          <i class="bi bi-graph-up text-info me-2"></i>Historical Trajectory: Salary vs Spending vs Savings Across Months
+        </h6>
+      </div>
+      <div class="card-body p-3">
+        <div style="height: 300px;">
+          <canvas id="historyLineChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 7. 'Show calculations' Collapsible Section -->
+<div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+  <div class="card-header bg-white border-bottom py-3">
+    <button class="btn btn-link p-0 text-decoration-none text-dark fw-bold w-100 d-flex justify-content-between align-items-center"
+            type="button" data-bs-toggle="collapse" data-bs-target="#calculationsCollapse"
+            aria-expanded="false" aria-controls="calculationsCollapse">
+      <span>
+        <i class="bi bi-calculator-fill text-primary me-2"></i>Show Calculations & Verification Steps
+      </span>
+      <i class="bi bi-chevron-down text-muted"></i>
+    </button>
+  </div>
+  <div class="collapse" id="calculationsCollapse">
+    <div class="card-body bg-light p-4">
+      <p class="small text-muted mb-3">
+        All calculations below are produced deterministically by the rule-based agent to ensure complete mathematical transparency and auditability:
+      </p>
+      <div class="list-group list-group-flush border rounded-3 bg-white shadow-xs">
+        {% for step in calculations %}
+          <div class="list-group-item font-monospace small py-2 px-3 text-secondary">
+            {{ step }}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const currencySymbol = {{ settings.currency | tojson }};
+  const barChartData = {{ charts.bar_chart | tojson }};
+  const doughnutChartData = {{ charts.doughnut_chart | tojson }};
+  const lineChartData = {{ charts.line_chart | tojson }};
+
+  // 1. Bar Chart: Budget vs Spent
+  const ctxBar = document.getElementById('categoryBarChart');
+  if (ctxBar && barChartData) {
+    new Chart(ctxBar, {
+      type: 'bar',
+      data: barChartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${currencySymbol}${context.raw.toLocaleString()}`
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: (value) => currencySymbol + value.toLocaleString()
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 2. Doughnut Chart: Spend Share
+  const ctxDoughnut = document.getElementById('categoryDoughnutChart');
+  if (ctxDoughnut && doughnutChartData && doughnutChartData.labels.length > 0) {
+    new Chart(ctxDoughnut, {
+      type: 'doughnut',
+      data: doughnutChartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right' },
+          tooltip: {
+            callbacks: {
+              label: (context) => {
+                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = total > 0 ? ((context.raw / total) * 100).toFixed(1) : 0;
+                return `${context.label}: ${currencySymbol}${context.raw.toLocaleString()} (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  } else if (ctxDoughnut) {
+    ctxDoughnut.parentElement.innerHTML = '<div class="h-100 d-flex align-items-center justify-content-center text-muted small">No spending recorded for this month.</div>';
+  }
+
+  // 3. Line Chart: Across Months
+  const ctxLine = document.getElementById('historyLineChart');
+  if (ctxLine && lineChartData && lineChartData.labels.length > 0) {
+    new Chart(ctxLine, {
+      type: 'line',
+      data: lineChartData,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: (context) => `${context.dataset.label}: ${currencySymbol}${context.raw.toLocaleString()}`
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: (value) => currencySymbol + value.toLocaleString()
+            }
+          }
+        }
+      }
+    });
+  }
+</script>
+{% endblock %}
